@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { Droplets } from "lucide-react";
 import { WeatherData, TemperatureUnit } from "@/types/weather";
 import { getWeatherIconUrl, formatTemperature } from "@/lib/weather";
 
@@ -36,10 +37,16 @@ export function DailyForecast({ daily, unit }: DailyForecastProps) {
             </div>
 
             <div className="flex items-center gap-4">
-              <span className="font-mono text-lg font-semibold text-foreground">
+              {day.pop > 0 && (
+                <div className="flex items-center gap-1 text-primary text-sm">
+                  <Droplets className="h-4 w-4" />
+                  <span>{day.pop}%</span>
+                </div>
+              )}
+              <span className="font-mono text-lg font-semibold text-foreground w-16 text-right">
                 {formatTemperature(day.high, unit)}
               </span>
-              <span className="font-mono text-lg text-muted-foreground">
+              <span className="font-mono text-lg text-muted-foreground w-16 text-right">
                 {formatTemperature(day.low, unit)}
               </span>
             </div>

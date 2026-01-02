@@ -69,26 +69,46 @@ serve(async (req) => {
       console.log('Geocoding result:', { cityName, latitude, longitude });
     }
 
-    // Get current weather
-    console.log('Fetching current weather...');
-    const currentResponse = await fetch(
-      `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&units=${units}&appid=${openWeatherApiKey}`
-    );
-    const currentData = await currentResponse.json();
+    // If we have lat/lon but no city name, do reverse geocoding
+    if (latitude && longitude && !cityName) {
+      console.log('Reverse geocoding coordinates:', { latitude, longitude });
+      const reverseGeoUrl = `https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${openWeatherApiKey}`;
+      const reverseGeoResponse = await fetch(reverseGeoUrl);
+      const reverseGeoData = await reverseGeoResponse.json();
+      if (Array.isArray(reverseGeoData) && reverseGeoData.length > 0) {
+        cityName = reverseGeoData[0].name;
+      } else {
+        cityName = 'Unknown Location';
+      }
+    }
 
-    // Get 5-day forecast (free tier)
-    console.log('Fetching forecast...');
-    const forecastResponse = await fetch(
-      `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&units=${units}&appid=${openWeatherApiKey}`
-    );
-    const forecastData = await forecastResponse.json();
+    // Fetch all data in parallel for better performance
+    console.log('Fetching weather data for:', { cityName, latitude, longitude });
+    
+    const [currentResponse, forecastResponse, airQualityResponse] = await Promise.all([
+      fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&units=${units}&appid=${openWeatherApiKey}`),
+      fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&units=${units}&appid=${openWeatherApiKey}`),
+      fetch(`https://api.openweathermap.org/data/2.5/air_pollution?lat=${latitude}&lon=${longitude}&appid=${openWeatherApiKey}`)
+    ]);
 
-    // Process hourly forecast (next 24 hours from 3-hour intervals)
+    const [currentData, forecastData, airQualityData] = await Promise.all([
+      currentResponse.json(),
+      forecastResponse.json(),
+      airQualityResponse.json()
+    ]);
+
+    console.log('Air quality response:', JSON.stringify(airQualityData));
+
+    // Process hourly forecast (all available 3-hour intervals)
     const hourlyForecast = forecastData.list.slice(0, 8).map((item: any) => ({
       time: item.dt,
       temp: Math.round(item.main.temp),
+      feels_like: Math.round(item.main.feels_like),
       icon: item.weather[0].icon,
       description: item.weather[0].description,
+      humidity: item.main.humidity,
+      wind_speed: item.wind.speed,
+      pop: Math.round((item.pop || 0) * 100), // Probability of precipitation
     }));
 
     // Process daily forecast (group by day and get daily highs/lows)
@@ -101,9 +121,12 @@ serve(async (req) => {
           temps: [],
           icon: item.weather[0].icon,
           description: item.weather[0].description,
+          pop: item.pop || 0,
         });
       }
-      dailyMap.get(date).temps.push(item.main.temp);
+      const dayData = dailyMap.get(date);
+      dayData.temps.push(item.main.temp);
+      dayData.pop = Math.max(dayData.pop, item.pop || 0);
     });
 
     const dailyForecast = Array.from(dailyMap.values()).slice(0, 6).map((day: any) => ({
@@ -112,11 +135,26 @@ serve(async (req) => {
       low: Math.round(Math.min(...day.temps)),
       icon: day.icon,
       description: day.description,
+      pop: Math.round(day.pop * 100),
     }));
+
+    // Process air quality data
+    const aqiData = airQualityData.list?.[0];
+    const airQuality = aqiData ? {
+      aqi: aqiData.main.aqi, // 1-5 scale (1=Good, 5=Very Poor)
+      components: {
+        co: aqiData.components.co,
+        no2: aqiData.components.no2,
+        o3: aqiData.components.o3,
+        pm2_5: aqiData.components.pm2_5,
+        pm10: aqiData.components.pm10,
+        so2: aqiData.components.so2,
+      }
+    } : null;
 
     const weatherResponse = {
       city: cityName,
-      country: currentData.sys.country,
+      country: currentData.sys?.country || '',
       current: {
         temp: Math.round(currentData.main.temp),
         feels_like: Math.round(currentData.main.feels_like),
@@ -126,9 +164,12 @@ serve(async (req) => {
         icon: currentData.weather[0].icon,
         visibility: currentData.visibility,
         pressure: currentData.main.pressure,
+        sunrise: currentData.sys.sunrise,
+        sunset: currentData.sys.sunset,
       },
       hourly: hourlyForecast,
       daily: dailyForecast,
+      airQuality,
     };
 
     console.log('Weather data fetched successfully for:', cityName);

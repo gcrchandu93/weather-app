@@ -1,4 +1,5 @@
-import { Droplets, Wind, Eye, Gauge } from "lucide-react";
+import { Droplets, Wind, Eye, Gauge, Sunrise, Sunset } from "lucide-react";
+import { format } from "date-fns";
 import { WeatherData, TemperatureUnit } from "@/types/weather";
 import { getWeatherIconUrl, formatTemperature, formatWindSpeed } from "@/lib/weather";
 
@@ -20,7 +21,7 @@ export function CurrentWeather({ weather, unit }: CurrentWeatherProps) {
       {/* Location */}
       <div className="relative">
         <h2 className="text-2xl font-semibold text-foreground">
-          {city}, <span className="text-muted-foreground">{country}</span>
+          {city}{country && <span className="text-muted-foreground">, {country}</span>}
         </h2>
         <p className="text-muted-foreground capitalize mt-1">{current.description}</p>
       </div>
@@ -43,7 +44,7 @@ export function CurrentWeather({ weather, unit }: CurrentWeatherProps) {
       </div>
 
       {/* Weather details grid */}
-      <div className="relative grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+      <div className="relative grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-8">
         <div className="glass-card-hover p-4">
           <Droplets className="h-6 w-6 text-primary mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">Humidity</p>
@@ -63,6 +64,20 @@ export function CurrentWeather({ weather, unit }: CurrentWeatherProps) {
           <Gauge className="h-6 w-6 text-primary mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">Pressure</p>
           <p className="text-xl font-semibold text-foreground">{current.pressure} hPa</p>
+        </div>
+        <div className="glass-card-hover p-4">
+          <Sunrise className="h-6 w-6 text-yellow-400 mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">Sunrise</p>
+          <p className="text-xl font-semibold text-foreground">
+            {format(new Date(current.sunrise * 1000), 'h:mm a')}
+          </p>
+        </div>
+        <div className="glass-card-hover p-4">
+          <Sunset className="h-6 w-6 text-orange-400 mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">Sunset</p>
+          <p className="text-xl font-semibold text-foreground">
+            {format(new Date(current.sunset * 1000), 'h:mm a')}
+          </p>
         </div>
       </div>
     </div>

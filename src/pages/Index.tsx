@@ -1,26 +1,48 @@
 import { useState, useEffect } from "react";
-import { CloudSun } from "lucide-react";
+import { CloudSun, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { WeatherData, TemperatureUnit } from "@/types/weather";
-import { fetchWeather } from "@/lib/weather";
+import { fetchWeatherByCity, fetchWeatherByCoords, getUserLocation } from "@/lib/weather";
 import { SearchBar } from "@/components/weather/SearchBar";
 import { UnitToggle } from "@/components/weather/UnitToggle";
 import { CurrentWeather } from "@/components/weather/CurrentWeather";
 import { HourlyForecast } from "@/components/weather/HourlyForecast";
 import { DailyForecast } from "@/components/weather/DailyForecast";
+import { AirQuality } from "@/components/weather/AirQuality";
 
 const Index = () => {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [unit, setUnit] = useState<TemperatureUnit>('metric');
   const [isLoading, setIsLoading] = useState(false);
-  const [lastCity, setLastCity] = useState<string>('');
+  const [lastSearch, setLastSearch] = useState<{ type: 'city' | 'coords'; city?: string; lat?: number; lon?: number } | null>(null);
+  const [locationLoading, setLocationLoading] = useState(true);
   const { toast } = useToast();
+
+  // Auto-detect location on load
+  useEffect(() => {
+    const loadUserLocation = async () => {
+      try {
+        const position = await getUserLocation();
+        const { latitude, longitude } = position.coords;
+        setLastSearch({ type: 'coords', lat: latitude, lon: longitude });
+        const data = await fetchWeatherByCoords(latitude, longitude, unit);
+        setWeather(data);
+      } catch (error) {
+        console.log('Could not get user location:', error);
+        // Silently fail - user can search manually
+      } finally {
+        setLocationLoading(false);
+      }
+    };
+
+    loadUserLocation();
+  }, []);
 
   const handleSearch = async (city: string) => {
     setIsLoading(true);
-    setLastCity(city);
+    setLastSearch({ type: 'city', city });
     try {
-      const data = await fetchWeather(city, unit);
+      const data = await fetchWeatherByCity(city, unit);
       setWeather(data);
     } catch (error) {
       toast({
@@ -33,12 +55,38 @@ const Index = () => {
     }
   };
 
+  const handleUseMyLocation = async () => {
+    setIsLoading(true);
+    try {
+      const position = await getUserLocation();
+      const { latitude, longitude } = position.coords;
+      setLastSearch({ type: 'coords', lat: latitude, lon: longitude });
+      const data = await fetchWeatherByCoords(latitude, longitude, unit);
+      setWeather(data);
+    } catch (error) {
+      toast({
+        title: "Location Error",
+        description: "Could not get your location. Please allow location access or search for a city.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleUnitToggle = async (newUnit: TemperatureUnit) => {
     setUnit(newUnit);
-    if (lastCity) {
+    if (lastSearch) {
       setIsLoading(true);
       try {
-        const data = await fetchWeather(lastCity, newUnit);
+        let data: WeatherData;
+        if (lastSearch.type === 'city' && lastSearch.city) {
+          data = await fetchWeatherByCity(lastSearch.city, newUnit);
+        } else if (lastSearch.lat && lastSearch.lon) {
+          data = await fetchWeatherByCoords(lastSearch.lat, lastSearch.lon, newUnit);
+        } else {
+          return;
+        }
         setWeather(data);
       } catch (error) {
         toast({
@@ -71,13 +119,29 @@ const Index = () => {
         </header>
 
         {/* Search */}
-        <SearchBar onSearch={handleSearch} isLoading={isLoading} />
+        <div className="space-y-3">
+          <SearchBar onSearch={handleSearch} isLoading={isLoading} />
+          <button
+            onClick={handleUseMyLocation}
+            disabled={isLoading}
+            className="flex items-center gap-2 mx-auto text-sm text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+          >
+            <MapPin className="h-4 w-4" />
+            Use my location
+          </button>
+        </div>
 
         {/* Weather Content */}
-        {weather ? (
+        {locationLoading ? (
+          <div className="glass-card p-12 text-center animate-fade-in">
+            <div className="h-12 w-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-muted-foreground">Detecting your location...</p>
+          </div>
+        ) : weather ? (
           <div className="space-y-6">
             <CurrentWeather weather={weather} unit={unit} />
             <HourlyForecast hourly={weather.hourly} unit={unit} />
+            {weather.airQuality && <AirQuality airQuality={weather.airQuality} />}
             <DailyForecast daily={weather.daily} unit={unit} />
           </div>
         ) : (
@@ -87,7 +151,7 @@ const Index = () => {
               Welcome to Weather
             </h2>
             <p className="text-muted-foreground max-w-md mx-auto">
-              Search for a city to see current conditions, hourly updates, and a 6-day forecast.
+              Search for a city or allow location access to see current conditions, hourly updates, air quality, and a 6-day forecast.
             </p>
           </div>
         )}
