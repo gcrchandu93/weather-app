@@ -26,15 +26,39 @@ serve(async (req) => {
     // If city name provided, get coordinates first
     if (city && !lat && !lon) {
       console.log('Geocoding city:', city);
-      const geoResponse = await fetch(
-        `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(city)}&limit=1&appid=${openWeatherApiKey}`
-      );
-      const geoData = await geoResponse.json();
+      console.log('API Key present:', !!openWeatherApiKey);
       
-      if (!geoData || geoData.length === 0) {
+      const geoUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(city)}&limit=1&appid=${openWeatherApiKey}`;
+      console.log('Geocoding URL:', geoUrl.replace(openWeatherApiKey || '', '***'));
+      
+      const geoResponse = await fetch(geoUrl);
+      const geoText = await geoResponse.text();
+      console.log('Geocoding raw response:', geoText);
+      
+      let geoData;
+      try {
+        geoData = JSON.parse(geoText);
+      } catch (e) {
+        console.error('Failed to parse geocoding response:', geoText);
+        return new Response(
+          JSON.stringify({ error: 'Invalid API key or API not activated yet. New keys take ~10 minutes to activate.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      // Check for API error response
+      if (geoData.cod && geoData.cod !== 200) {
+        console.log('API error:', geoData.message);
+        return new Response(
+          JSON.stringify({ error: geoData.message || 'API error occurred' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      if (!Array.isArray(geoData) || geoData.length === 0) {
         console.log('City not found:', city);
         return new Response(
-          JSON.stringify({ error: 'City not found' }),
+          JSON.stringify({ error: `City "${city}" not found. Try a different spelling or add country code (e.g., "London, UK")` }),
           { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
