@@ -10,6 +10,8 @@ import { HourlyForecast } from "@/components/weather/HourlyForecast";
 import { DailyForecast } from "@/components/weather/DailyForecast";
 import { AirQuality } from "@/components/weather/AirQuality";
 
+const DEFAULT_CITY = 'Hyderabad';
+
 const Index = () => {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [unit, setUnit] = useState<TemperatureUnit>('metric');
@@ -18,7 +20,18 @@ const Index = () => {
   const [locationLoading, setLocationLoading] = useState(true);
   const { toast } = useToast();
 
-  // Auto-detect location on load
+  // Load default city weather
+  const loadDefaultCity = async () => {
+    try {
+      setLastSearch({ type: 'city', city: DEFAULT_CITY });
+      const data = await fetchWeatherByCity(DEFAULT_CITY, unit);
+      setWeather(data);
+    } catch (error) {
+      console.log('Could not load default city:', error);
+    }
+  };
+
+  // Auto-detect location on load, fallback to default city
   useEffect(() => {
     const loadUserLocation = async () => {
       try {
@@ -28,8 +41,9 @@ const Index = () => {
         const data = await fetchWeatherByCoords(latitude, longitude, unit);
         setWeather(data);
       } catch (error) {
-        console.log('Could not get user location:', error);
-        // Silently fail - user can search manually
+        console.log('Could not get user location, loading default city:', error);
+        // Fallback to default city
+        await loadDefaultCity();
       } finally {
         setLocationLoading(false);
       }
