@@ -31,9 +31,14 @@ const Index = () => {
     }
   };
 
-  // Auto-detect location on load, fallback to default city
+  // Load weather on mount - try user location first, fallback to default city immediately
   useEffect(() => {
-    const loadUserLocation = async () => {
+    const loadWeather = async () => {
+      // First, immediately load the default city to show something fast
+      await loadDefaultCity();
+      setLocationLoading(false);
+      
+      // Then try to get user location in the background
       try {
         const position = await getUserLocation();
         const { latitude, longitude } = position.coords;
@@ -41,15 +46,12 @@ const Index = () => {
         const data = await fetchWeatherByCoords(latitude, longitude, unit);
         setWeather(data);
       } catch (error) {
-        console.log('Could not get user location, loading default city:', error);
-        // Fallback to default city
-        await loadDefaultCity();
-      } finally {
-        setLocationLoading(false);
+        console.log('Could not get user location, keeping default city:', error);
+        // Keep the default city weather that's already loaded
       }
     };
 
-    loadUserLocation();
+    loadWeather();
   }, []);
 
   const handleSearch = async (city: string) => {
