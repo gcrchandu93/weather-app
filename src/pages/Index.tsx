@@ -27,10 +27,20 @@ const Index = () => {
   // Fetch search history
   const fetchSearchHistory = useCallback(async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('search-history', {
-        method: 'GET',
-      });
-      if (!error && Array.isArray(data)) {
+      console.log('Fetching search history...');
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/search-history`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+        }
+      );
+      const data = await response.json();
+      console.log('Fetched search history:', data);
+      if (Array.isArray(data)) {
         setSearchHistory(data);
       }
     } catch (error) {
@@ -43,9 +53,21 @@ const Index = () => {
   // Save search to history
   const saveToHistory = useCallback(async (cityName: string, searchQuery: string) => {
     try {
-      await supabase.functions.invoke('search-history', {
-        body: { city_name: cityName, search_query: searchQuery },
-      });
+      console.log('Saving to history:', cityName, searchQuery);
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/search-history`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ city_name: cityName, search_query: searchQuery }),
+        }
+      );
+      const data = await response.json();
+      console.log('Saved to history:', data);
       fetchSearchHistory();
     } catch (error) {
       console.error('Error saving to history:', error);
@@ -55,10 +77,17 @@ const Index = () => {
   // Clear search history
   const clearHistory = useCallback(async () => {
     try {
-      await supabase.functions.invoke('search-history', {
-        method: 'DELETE',
-        body: {},
-      });
+      console.log('Clearing search history...');
+      await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/search-history`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+        }
+      );
       setSearchHistory([]);
       toast({
         title: "History cleared",
