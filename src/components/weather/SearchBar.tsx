@@ -12,12 +12,22 @@ interface CitySuggestion {
   lon: number;
 }
 
+export interface SearchHistoryItem {
+  id: string;
+  city_name: string;
+  search_query: string;
+  lat?: number;
+  lon?: number;
+  searched_at: string;
+}
+
 interface SearchBarProps {
   onSearch: (city: string) => void;
+  onSearchComplete?: (cityName: string, query: string) => void;
   isLoading: boolean;
 }
 
-export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
+export function SearchBar({ onSearch, onSearchComplete, isLoading }: SearchBarProps) {
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<CitySuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -76,6 +86,7 @@ export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
     e.preventDefault();
     if (query.trim()) {
       onSearch(query.trim());
+      onSearchComplete?.(query.trim(), query.trim());
       setShowSuggestions(false);
     }
   };
@@ -86,6 +97,7 @@ export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
       : `${suggestion.name}, ${suggestion.country}`;
     setQuery(suggestion.name);
     onSearch(cityQuery);
+    onSearchComplete?.(suggestion.name, cityQuery);
     setShowSuggestions(false);
     setSelectedIndex(-1);
   };

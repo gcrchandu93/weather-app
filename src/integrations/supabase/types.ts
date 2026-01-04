@@ -14,7 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      search_history: {
+        Row: {
+          city_name: string
+          id: string
+          lat: number | null
+          lon: number | null
+          search_query: string
+          searched_at: string
+        }
+        Insert: {
+          city_name: string
+          id?: string
+          lat?: number | null
+          lon?: number | null
+          search_query: string
+          searched_at?: string
+        }
+        Update: {
+          city_name?: string
+          id?: string
+          lat?: number | null
+          lon?: number | null
+          search_query?: string
+          searched_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

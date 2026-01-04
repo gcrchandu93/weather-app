@@ -1,14 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { CloudSun, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { WeatherData, TemperatureUnit } from "@/types/weather";
 import { fetchWeatherByCity, fetchWeatherByCoords, getUserLocation } from "@/lib/weather";
-import { SearchBar } from "@/components/weather/SearchBar";
+import { SearchBar, SearchHistoryItem } from "@/components/weather/SearchBar";
 import { UnitToggle } from "@/components/weather/UnitToggle";
 import { CurrentWeather } from "@/components/weather/CurrentWeather";
 import { HourlyForecast } from "@/components/weather/HourlyForecast";
 import { DailyForecast } from "@/components/weather/DailyForecast";
 import { AirQuality } from "@/components/weather/AirQuality";
+import { RecentSearches } from "@/components/weather/RecentSearches";
+import { supabase } from "@/integrations/supabase/client";
 
 const DEFAULT_CITY = 'Hyderabad';
 
@@ -18,7 +20,63 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [lastSearch, setLastSearch] = useState<{ type: 'city' | 'coords'; city?: string; lat?: number; lon?: number } | null>(null);
   const [locationLoading, setLocationLoading] = useState(true);
+  const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const { toast } = useToast();
+
+  // Fetch search history
+  const fetchSearchHistory = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('search-history', {
+        method: 'GET',
+      });
+      if (!error && Array.isArray(data)) {
+        setSearchHistory(data);
+      }
+    } catch (error) {
+      console.error('Error fetching search history:', error);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  // Save search to history
+  const saveToHistory = useCallback(async (cityName: string, searchQuery: string) => {
+    try {
+      await supabase.functions.invoke('search-history', {
+        body: { city_name: cityName, search_query: searchQuery },
+      });
+      fetchSearchHistory();
+    } catch (error) {
+      console.error('Error saving to history:', error);
+    }
+  }, [fetchSearchHistory]);
+
+  // Clear search history
+  const clearHistory = useCallback(async () => {
+    try {
+      await supabase.functions.invoke('search-history', {
+        method: 'DELETE',
+        body: {},
+      });
+      setSearchHistory([]);
+      toast({
+        title: "History cleared",
+        description: "Your search history has been cleared.",
+      });
+    } catch (error) {
+      console.error('Error clearing history:', error);
+    }
+  }, [toast]);
+
+  // Handle selecting from history
+  const handleHistorySelect = (item: SearchHistoryItem) => {
+    handleSearch(item.search_query);
+  };
+
+  useEffect(() => {
+    fetchSearchHistory();
+  }, [fetchSearchHistory]);
 
   // Load default city weather
   const loadDefaultCity = async () => {
@@ -136,7 +194,7 @@ const Index = () => {
 
         {/* Search */}
         <div className="space-y-3">
-          <SearchBar onSearch={handleSearch} isLoading={isLoading} />
+          <SearchBar onSearch={handleSearch} onSearchComplete={saveToHistory} isLoading={isLoading} />
           <button
             onClick={handleUseMyLocation}
             disabled={isLoading}
@@ -145,6 +203,12 @@ const Index = () => {
             <MapPin className="h-4 w-4" />
             Use my location
           </button>
+          <RecentSearches
+            searches={searchHistory}
+            onSelect={handleHistorySelect}
+            onClear={clearHistory}
+            isLoading={historyLoading}
+          />
         </div>
 
         {/* Weather Content */}
