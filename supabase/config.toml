@@ -2,3 +2,9 @@ project_id = "zkieyovsehsrmibccquq"
 
 [functions.weather]
 verify_jwt = false
+
+[functions.geocode]
+verify_jwt = false
+
+[functions.search-history]
+verify_jwt = false
